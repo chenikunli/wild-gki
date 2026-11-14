@@ -462,15 +462,29 @@ jobs:
           kernel_version: ${{ inputs.kernel_version }}
 
       - name: Apply Kernel Branding
-        uses: ./.github/actions/apply-kernel-branding
-        with:
-          variant: ${{ inputs.variant }}
-          kernel_version: ${{ inputs.kernel_version }}
-          android_version: ${{ inputs.android_version }}
-          version: ${{ inputs.version }}
-          sublevel: ${{ steps.extract.outputs.sublevel }}
-          brand_name: ${{ inputs.brand_name }}
-          keep_kmi: ${{ inputs.keep_kmi }}
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "$GITHUB_WORKSPACE/.ci-diag"
+          D="$GITHUB_WORKSPACE/.ci-diag/branding.txt"
+          {
+            echo "pwd=$(pwd)"
+            echo "brand=[${{ inputs.brand_name }}] version=[${{ inputs.version }}] sublevel=[${{ steps.extract.outputs.sublevel }}] keep_kmi=[${{ inputs.keep_kmi }}]"
+            echo "--- workspace ---"
+            ls -la "$GITHUB_WORKSPACE" | head -30
+            echo "--- kernel dir ---"
+            ls -la "$GITHUB_WORKSPACE/kernel" 2>&1 | head -20
+            echo "--- kernel/common ---"
+            ls -d "$GITHUB_WORKSPACE/kernel/common" 2>&1
+            echo "--- setlocalversion ---"
+            ls -l "$GITHUB_WORKSPACE/kernel/common/scripts/setlocalversion" 2>&1
+            tail -6 "$GITHUB_WORKSPACE/kernel/common/scripts/setlocalversion" 2>&1
+            echo "--- KMI ---"
+            grep -h "^KMI_GENERATION" "$GITHUB_WORKSPACE/kernel/common/build.config.common" "$GITHUB_WORKSPACE/kernel/common/build.config.constants" 2>&1
+          } > "$D" 2>&1
+          cat "$D"
+          echo "diagnostic-only step, exit 0"
+          exit 0
 
       - name: Remove Protected Exports
         uses: ./.github/actions/remove-protected-exports
@@ -551,6 +565,7 @@ jobs:
           mkdir -p .ci-out
           cp "/tmp/${NAME}-AnyKernel3.zip" .ci-out/ 2>/dev/null || true
           tar czf .ci-out/build-logs.tgz build-logs 2>/dev/null || true
+          tar czf .ci-out/diag.tgz .ci-diag 2>/dev/null || true
           ls -lh .ci-out || true
           if [ -z "$(ls -A .ci-out 2>/dev/null)" ]; then echo "nothing to publish"; exit 0; fi
           git config user.name "ci-publish"
