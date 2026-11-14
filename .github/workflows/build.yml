@@ -539,6 +539,26 @@ jobs:
           if-no-files-found: ignore
           compression-level: 9
 
+      - name: Publish AK3 to branch (bypass blob)
+        if: always()
+        run: |
+          set -x
+          cd "$GITHUB_WORKSPACE"
+          NAME="${{ steps.extract.outputs.file_name }}"
+          if [ -d AnyKernel3 ]; then
+            ( cd AnyKernel3 && zip -r9 "/tmp/${NAME}-AnyKernel3.zip" . -x '*.git*' ) || true
+          fi
+          mkdir -p .ci-out
+          cp "/tmp/${NAME}-AnyKernel3.zip" .ci-out/ 2>/dev/null || true
+          tar czf .ci-out/build-logs.tgz build-logs 2>/dev/null || true
+          ls -lh .ci-out || true
+          if [ -z "$(ls -A .ci-out 2>/dev/null)" ]; then echo "nothing to publish"; exit 0; fi
+          git config user.name "ci-publish"
+          git config user.email "ci@localhost"
+          git add -f .ci-out || true
+          git commit -m "publish $NAME run=$GITHUB_RUN_ID" || true
+          git push -f origin "HEAD:refs/heads/ak3-out" || echo "push failed"
+
       - name: Write Build-verified only artifact metadata
         if: success() && inputs.root_flavor != '' && inputs.root_flavor != 'none'
         uses: ./.github/actions/build-metadata
